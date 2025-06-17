@@ -30,6 +30,9 @@ TRADE_PRODUCT_CODE = os.getenv("TRADE_PRODUCT_CODE", "01")
 scenarios = []
 news_log = []
 portfolio = {}
+trade_history = []
+current_scenario = None
+
 
 
 def get_access_token():
@@ -76,6 +79,8 @@ def make_hashkey(data):
         body = json.dumps(data, separators=(",", ":"))
         return hashlib.sha256(body.encode()).hexdigest()
 
+
+
 # sample financial data for dividend yield calculation (예시)
 sample_financials = [
     {"corp_name": "삼성전자", "symbol": "005930", "corp_code": "005930", "dps": 361, "price": 70000},
@@ -85,24 +90,71 @@ sample_financials = [
     {"corp_name": "LG화학", "symbol": "051910", "corp_code": "051910", "dps": 12000, "price": 350000},
 ]
 
+
+def get_stock_info(symbol):
+    """Return stock name and current price using the trade API when possible."""
+    token = get_access_token()
+    if token:
+        headers = {
+            "content-type": "application/json; charset=utf-8",
+            "authorization": f"Bearer {token}",
+            "appkey": TRADE_API_KEY,
+            "appsecret": TRADE_API_SECRET,
+            "tr_id": "VTTC8434R",
+            "custtype": "P",
+        }
+        params = {
+            "fid_cond_mrkt_div_code": "J",
+            "fid_input_iscd": symbol,
+        }
+        try:
+            r = requests.get(
+                f"{TRADE_API_URL}/uapi/domestic-stock/v1/quotations/inquire-price",
+                headers=headers,
+                params=params,
+                timeout=10,
+            )
+            r.raise_for_status()
+            out = r.json().get("output", {})
+            name = out.get("hts_kor_isnm", symbol)
+            price = int(float(out.get("stck_prpr", 0)))
+            return {"name": name, "price": price}
+        except Exception as e:
+            print("Price error", e)
+    for item in sample_financials:
+        if item["symbol"] == symbol:
+            return {"name": item["corp_name"], "price": item["price"]}
+    return {"name": symbol, "price": 0}
+
 # analyzed query state
 analysis_state = {}
 
 # Add scenario and record investment
 
 def add_scenario(desc, qty, keywords, symbol):
+    global current_scenario
+    info = get_stock_info(symbol)
+    try:
+        q = int(float(qty))
+    except ValueError:
+        return "수량이 잘못되었습니다."
     scenario = {
         "desc": desc,
-        "qty": qty,
+        "qty": q,
         "keywords": keywords,
         "symbol": symbol,
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "name": info.get("name", symbol),
+        "price": info.get("price", 0),
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
+    current_scenario = scenario
     scenarios.append(scenario)
     schedule.every().day.at("08:00").do(check_news, scenario)
+    total = scenario["price"] * q
     return (
-        f"Scenario added:\n{desc}\nQty: {qty} of {symbol}\n"
-        f"Keywords: {keywords}\nPress '매매 실행' to trade"
+        f"{scenario['name']} 현재가 {scenario['price']:,}원\n"
+        f"주문수량 {q}주\n총 금액 {total:,}원\n'매매 실행'을 누르세요"
+
     )
 
 # Fetch latest news from Google News
@@ -247,6 +299,29 @@ def execute_trade(symbol, qty):
         return f"Trade error: {e}"
 
 
+def trade_current():
+    """Execute trade for the current scenario and record history."""
+    global current_scenario
+    if not current_scenario:
+        data = [[h["time"], h["scenario"], h["symbol"], h["name"], h["qty"], h["price"], h["total"]] for h in trade_history]
+        return "시나리오가 없습니다.", data
+    msg = execute_trade(current_scenario["symbol"], current_scenario["qty"])
+    if not msg.startswith("Trade error") and not msg.startswith("Failed"):
+        total = current_scenario["price"] * current_scenario["qty"]
+        trade_history.append({
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "scenario": current_scenario["desc"],
+            "symbol": current_scenario["symbol"],
+            "name": current_scenario["name"],
+            "qty": current_scenario["qty"],
+            "price": current_scenario["price"],
+            "total": total,
+        })
+        current_scenario = None
+    data = [[h["time"], h["scenario"], h["symbol"], h["name"], h["qty"], h["price"], h["total"]] for h in trade_history]
+    return msg, data
+
+
 
 
 def example_results(query):
@@ -263,6 +338,9 @@ def perform_query(_=None):
 
 with gr.Blocks() as demo:
     gr.Markdown("## 간단한 로보 어드바이저 예제")
+    with gr.Tab("시나리오 저장소"):
+        history_table = gr.Dataframe(headers=["시간", "시나리오", "종목", "이름", "수량", "가격", "총액"], interactive=False)
+
     with gr.Tab("시나리오 투자"):
         scenario_text = gr.Textbox(label="시나리오 내용")
         quantity = gr.Textbox(label="주문 수량")
@@ -273,7 +351,8 @@ with gr.Blocks() as demo:
         add_btn.click(add_scenario, [scenario_text, quantity, keywords, symbol], scenario_out)
         trade_btn = gr.Button("매매 실행")
         trade_result = gr.Textbox(label="매매 결과")
-        trade_btn.click(execute_trade, [symbol, quantity], trade_result)
+        trade_btn.click(trade_current, None, [trade_result, history_table])
+
         news_btn = gr.Button("최신 뉴스 확인")
         news_out = gr.Textbox(label="뉴스 결과")
         news_btn.click(fetch_news, keywords, news_out)
