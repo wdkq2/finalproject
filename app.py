@@ -4,8 +4,10 @@ import gradio as gr
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+import openai
 
 TRADE_ACCOUNT = os.getenv("TRADE_ACCOUNT") or "12345678"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 import schedule
 import time
 import json
@@ -70,11 +72,54 @@ def get_access_token():
                 "access_token": token,
                 "expires_at": now + timedelta(seconds=max(expires - TOKEN_BUFFER_SECONDS, 0)),
             }
-        return token
+    {"corp_name": "삼성전자", "symbol": "005930", "corp_code": "005930", "dps": 361, "price": 70000, "per": 12.3},
+    {"corp_name": "현대차", "symbol": "005380", "corp_code": "005380", "dps": 3000, "price": 200000, "per": 8.5},
+    {"corp_name": "NAVER", "symbol": "035420", "corp_code": "035420", "dps": 667, "price": 150000, "per": 20.1},
+    {"corp_name": "카카오", "symbol": "035720", "corp_code": "035720", "dps": 0, "price": 60000, "per": 40.2},
+    {"corp_name": "LG화학", "symbol": "051910", "corp_code": "051910", "dps": 12000, "price": 350000, "per": 15.0},
 
+
+def search_stocks_openai(prompt):
+    """Return a list of {'name': str, 'code': str} from OpenAI."""
+    if not OPENAI_API_KEY:
+        return []
+    openai.api_key = OPENAI_API_KEY
+    system = (
+        "You are a financial assistant. Respond with a JSON array of objects "
+        "containing 'name' and 6-digit 'code' for Korean stocks that match the query."
+    )
+    try:
+        resp = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            timeout=10,
+        )
+        text = resp.choices[0].message.content
+        return json.loads(text)
     except Exception as e:
-        print("Token error", e)
-        return None
+        print("OpenAI error", e)
+        return []
+
+
+def get_stock_per(code):
+    """Fetch stock name and PER from Naver's mobile API."""
+    url = f"https://m.stock.naver.com/api/stock/{code}/integration"
+    try:
+        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        name = data.get("stockName", code)
+        per = None
+        for item in data.get("totalInfos", []):
+            if item.get("field") == "per":
+                per = item.get("value")
+        return {"name": name, "code": code, "per": per}
+    except Exception as e:
+        print("Naver API error", e)
+        for item in sample_financials:
+            if item["symbol"] == code:
+                return {"name": item["corp_name"], "code": code, "per": item.get("per")}
+        return {"name": code, "code": code, "per": None}
 
 
 def make_hashkey(data):
@@ -205,6 +250,10 @@ def fetch_news(keywords):
     items = root.findall("./channel/item")
     output = []
     for item in items[:3]:
+    if "per" in query.lower() and ("저평가" in query or "낮" in query):
+        analysis_state['query'] = query
+        analysis_state['type'] = 'per_search'
+        return "PER 기준 저평가 종목 10개를 찾습니다. 맞습니까?"
         title = item.findtext("title", default="")
         link = item.findtext("link", default="")
         output.append(f"{title}\n{link}")
@@ -323,6 +372,18 @@ def execute_trade(symbol, qty):
 
 def trade_current():
     """Execute trade for the current scenario and record history."""
+    elif analysis_state.get('type') == 'per_search':
+        stocks = search_stocks_openai(analysis_state.get('query', ''))
+        if not stocks:
+            return "검색 결과가 없습니다."
+        lines = []
+        for s in stocks[:10]:
+            code = s.get('code') or s.get('symbol')
+            if not code:
+                continue
+            info = get_stock_per(code)
+            lines.append(f"{info['name']}({info['code']}): PER {info['per']}")
+        return "\n".join(lines) if lines else "결과 없음"
     global current_scenario
     if not current_scenario:
         data = [[h["time"], h["scenario"], h["symbol"], h["name"], h["qty"], h["price"], h["total"]] for h in trade_history]
