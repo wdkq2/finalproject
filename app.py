@@ -90,10 +90,10 @@ analysis_state = {}
 
 # Add scenario and record investment
 
-def add_scenario(desc, amount, keywords, symbol):
+def add_scenario(desc, qty, keywords, symbol):
     scenario = {
         "desc": desc,
-        "amount": amount,
+        "qty": qty,
         "keywords": keywords,
         "symbol": symbol,
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -101,7 +101,7 @@ def add_scenario(desc, amount, keywords, symbol):
     scenarios.append(scenario)
     schedule.every().day.at("08:00").do(check_news, scenario)
     return (
-        f"Scenario added:\n{desc}\nInvest: {amount} in {symbol}\n"
+        f"Scenario added:\n{desc}\nQty: {qty} of {symbol}\n"
         f"Keywords: {keywords}\nPress '매매 실행' to trade"
     )
 
@@ -207,7 +207,7 @@ def execute_trade(symbol, qty):
     try:
         q = int(float(qty))
     except ValueError:
-        return "Invalid amount"
+        return "Invalid quantity"
 
     token = get_access_token()
     if not token:
@@ -265,15 +265,15 @@ with gr.Blocks() as demo:
     gr.Markdown("## 간단한 로보 어드바이저 예제")
     with gr.Tab("시나리오 투자"):
         scenario_text = gr.Textbox(label="시나리오 내용")
-        amount = gr.Textbox(label="투자 금액 (원)")
+        quantity = gr.Textbox(label="주문 수량")
         symbol = gr.Textbox(label="종목 코드")
         keywords = gr.Textbox(label="뉴스 검색 키워드")
         add_btn = gr.Button("시나리오 추가")
         scenario_out = gr.Textbox(label="상태")
-        add_btn.click(add_scenario, [scenario_text, amount, keywords, symbol], scenario_out)
+        add_btn.click(add_scenario, [scenario_text, quantity, keywords, symbol], scenario_out)
         trade_btn = gr.Button("매매 실행")
         trade_result = gr.Textbox(label="매매 결과")
-        trade_btn.click(execute_trade, [symbol, amount], trade_result)
+        trade_btn.click(execute_trade, [symbol, quantity], trade_result)
         news_btn = gr.Button("최신 뉴스 확인")
         news_out = gr.Textbox(label="뉴스 결과")
         news_btn.click(fetch_news, keywords, news_out)
