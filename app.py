@@ -34,6 +34,7 @@ trade_history = []
 current_scenario = None
 
 
+
 def get_access_token():
     """Retrieve an access token for the trading API."""
     token_url = f"{TRADE_API_URL}/oauth2/tokenP"
@@ -77,6 +78,7 @@ def make_hashkey(data):
         print("Hashkey error", e)
         body = json.dumps(data, separators=(",", ":"))
         return hashlib.sha256(body.encode()).hexdigest()
+
 
 
 # sample financial data for dividend yield calculation (예시)
@@ -152,6 +154,7 @@ def add_scenario(desc, qty, keywords, symbol):
     return (
         f"{scenario['name']} 현재가 {scenario['price']:,}원\n"
         f"주문수량 {q}주\n총 금액 {total:,}원\n'매매 실행'을 누르세요"
+
     )
 
 # Fetch latest news from Google News
@@ -337,6 +340,7 @@ with gr.Blocks() as demo:
     gr.Markdown("## 간단한 로보 어드바이저 예제")
     with gr.Tab("시나리오 저장소"):
         history_table = gr.Dataframe(headers=["시간", "시나리오", "종목", "이름", "수량", "가격", "총액"], interactive=False)
+
     with gr.Tab("시나리오 투자"):
         scenario_text = gr.Textbox(label="시나리오 내용")
         quantity = gr.Textbox(label="주문 수량")
@@ -348,6 +352,7 @@ with gr.Blocks() as demo:
         trade_btn = gr.Button("매매 실행")
         trade_result = gr.Textbox(label="매매 결과")
         trade_btn.click(trade_current, None, [trade_result, history_table])
+
         news_btn = gr.Button("최신 뉴스 확인")
         news_out = gr.Textbox(label="뉴스 결과")
         news_btn.click(fetch_news, keywords, news_out)
