@@ -5,7 +5,7 @@ import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
-import threading
+TRADE_ACCOUNT = os.getenv("TRADE_ACCOUNT") or "12345678"
 import schedule
 import time
 import json
