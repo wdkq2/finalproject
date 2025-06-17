@@ -3,7 +3,7 @@ import re
 import gradio as gr
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta
 import threading
 import schedule
 import time
@@ -32,12 +32,26 @@ news_log = []
 portfolio = {}
 trade_history = []
 current_scenario = None
+_token_cache = {}
+TOKEN_BUFFER_SECONDS = 60
 
 
+    """Retrieve an access token for the trading API using /oauth2/tokenP."""
+    global _token_cache
+    now = datetime.utcnow()
+    if _token_cache and now < _token_cache.get("expires_at", now):
+        return _token_cache.get("access_token")
 
-def get_access_token():
-    """Retrieve an access token for the trading API."""
-    token_url = f"{TRADE_API_URL}/oauth2/tokenP"
+            headers={"content-type": "application/x-www-form-urlencoded"},
+            data=payload,
+        token = data.get("access_token")
+        expires = int(data.get("expires_in", 0))
+        if token:
+            _token_cache = {
+                "access_token": token,
+                "expires_at": now + timedelta(seconds=max(expires - TOKEN_BUFFER_SECONDS, 0)),
+            }
+        return token
     payload = {
         "grant_type": "client_credentials",
         "appkey": TRADE_API_KEY,
