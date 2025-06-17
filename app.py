@@ -25,6 +25,7 @@ TRADE_API_SECRET = os.getenv(
 TRADE_API_URL = os.getenv(
     "TRADE_API_URL", "https://openapivts.koreainvestment.com:29443"
 )
+
 TRADE_ACCOUNT = os.getenv("TRADE_ACCOUNT", "50139411-01")
 TRADE_PRODUCT_CODE = os.getenv("TRADE_PRODUCT_CODE", "01")
 
@@ -54,11 +55,9 @@ def get_access_token():
     try:
         r = requests.post(
             token_url,
+            headers={"content-type": "application/x-www-form-urlencoded"},
+            data=payload,
 
-            headers={"Content-Type": "application/json; charset=utf-8"},
-
-
-            json=payload,
             timeout=10,
         )
         r.raise_for_status()
@@ -314,6 +313,10 @@ def execute_trade(symbol, qty):
         portfolio[symbol] = portfolio.get(symbol, 0) + q
         msg = data.get("msg1", "trade executed")
         return f"{msg} 현재 보유 {portfolio[symbol]}주"
+    except requests.exceptions.HTTPError as e:
+        err = resp.text if 'resp' in locals() else str(e)
+        return f"Trade error: {e} {err}"
+
     except Exception as e:
         return f"Trade error: {e}"
 
