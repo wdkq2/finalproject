@@ -4,6 +4,7 @@ import gradio as gr
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+
 import threading
 import schedule
 import time
@@ -24,7 +25,9 @@ TRADE_API_SECRET = os.getenv(
 TRADE_API_URL = os.getenv(
     "TRADE_API_URL", "https://openapivts.koreainvestment.com:29443"
 )
-TRADE_ACCOUNT = os.getenv("TRADE_ACCOUNT", "")
+
+TRADE_ACCOUNT = os.getenv("TRADE_ACCOUNT", "50139411-01")
+
 TRADE_PRODUCT_CODE = os.getenv("TRADE_PRODUCT_CODE", "01")
 
 scenarios = []
@@ -43,6 +46,7 @@ def get_access_token():
     if _token_cache and now < _token_cache.get("expires_at", now):
         return _token_cache.get("access_token")
 
+
     token_url = f"{TRADE_API_URL}/oauth2/tokenP"
     payload = {
         "grant_type": "client_credentials",
@@ -52,8 +56,9 @@ def get_access_token():
     try:
         r = requests.post(
             token_url,
+
             headers={"Content-Type": "application/json; charset=UTF-8"},
-            json=payload,
+
             timeout=10,
         )
         r.raise_for_status()
@@ -66,6 +71,7 @@ def get_access_token():
                 "expires_at": now + timedelta(seconds=max(expires - TOKEN_BUFFER_SECONDS, 0)),
             }
         return token
+
     except Exception as e:
         print("Token error", e)
         return None
@@ -166,6 +172,7 @@ def add_scenario(desc, qty, keywords, symbol):
     return (
         f"{scenario['name']} 현재가 {scenario['price']:,}원\n"
         f"주문수량 {q}주\n총 금액 {total:,}원\n'매매 실행'을 누르세요"
+
     )
 
 # Fetch latest news from Google News
@@ -309,6 +316,7 @@ def execute_trade(symbol, qty):
     except requests.exceptions.HTTPError as e:
         err = resp.text if 'resp' in locals() else str(e)
         return f"Trade error: {e} {err}"
+
     except Exception as e:
         return f"Trade error: {e}"
 
@@ -354,6 +362,7 @@ with gr.Blocks() as demo:
     gr.Markdown("## 간단한 로보 어드바이저 예제")
     with gr.Tab("시나리오 저장소"):
         history_table = gr.Dataframe(headers=["시간", "시나리오", "종목", "이름", "수량", "가격", "총액"], interactive=False)
+
     with gr.Tab("시나리오 투자"):
         scenario_text = gr.Textbox(label="시나리오 내용")
         quantity = gr.Textbox(label="주문 수량")
@@ -365,6 +374,7 @@ with gr.Blocks() as demo:
         trade_btn = gr.Button("매매 실행")
         trade_result = gr.Textbox(label="매매 결과")
         trade_btn.click(trade_current, None, [trade_result, history_table])
+
         news_btn = gr.Button("최신 뉴스 확인")
         news_out = gr.Textbox(label="뉴스 결과")
         news_btn.click(fetch_news, keywords, news_out)
