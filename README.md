@@ -3,11 +3,10 @@
 간단한 로보 어드바이저 예제입니다. 시나리오 기반 투자와 특징 검색 기능을 간단하게 체험할 수 있는 웹 인터페이스를 제공합니다.
 
 ## 실행 방법 (Colab)
-1. 새로운 Colab 노트를 열고 아래 명령을 실행해 저장소를 클론합니다.
-    기본 브랜치에는 예제 코드가 없으므로 `work` 브랜치를 지정해 클론합니다.
+1. 새로운 Colab 노트를 열고 아래 명령을 실행해 저장소를 클론합니다. 저장소 URL과 브랜치는 본인의 환경에 맞게 지정하세요.
 ```python
-!git clone --single-branch --branch work https://github.com/wdkq2/roboadivser.git
-%cd roboadivser
+!git clone <저장소 URL>
+%cd finalproject
 ```
 다음 명령으로 파일 목록을 확인했을 때 `requirements.txt` 가 보이지 않는다면
 올바른 브랜치를 클론하지 않은 것이므로 다시 클론해야 합니다.
