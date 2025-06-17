@@ -52,8 +52,8 @@ def get_access_token():
     try:
         r = requests.post(
             token_url,
-            headers={"Content-Type": "application/json; charset=utf-8"},
-            json=payload,
+            headers={"content-type": "application/x-www-form-urlencoded"},
+            data=payload,
             timeout=10,
         )
         r.raise_for_status()
@@ -306,6 +306,9 @@ def execute_trade(symbol, qty):
         portfolio[symbol] = portfolio.get(symbol, 0) + q
         msg = data.get("msg1", "trade executed")
         return f"{msg} 현재 보유 {portfolio[symbol]}주"
+    except requests.exceptions.HTTPError as e:
+        err = resp.text if 'resp' in locals() else str(e)
+        return f"Trade error: {e} {err}"
     except Exception as e:
         return f"Trade error: {e}"
 
