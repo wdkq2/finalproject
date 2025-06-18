@@ -9,7 +9,6 @@ import schedule
 import time
 import json
 import hashlib
-import openai
 
 DART_API_KEY = (
     os.getenv("DART_API_KEY")
@@ -27,7 +26,6 @@ TRADE_API_URL = os.getenv(
 )
 TRADE_ACCOUNT = os.getenv("TRADE_ACCOUNT") or "12345678"
 TRADE_PRODUCT_CODE = os.getenv("TRADE_PRODUCT_CODE", "01")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 scenarios = []
 news_log = []
@@ -105,26 +103,13 @@ sample_financials = [
 ]
 
 
-def search_stocks_openai(prompt):
-    """Return a list of {'name': str, 'code': str} from OpenAI."""
-    if not OPENAI_API_KEY:
-        return []
-    openai.api_key = OPENAI_API_KEY
-    system = (
-        "You are a financial assistant. Respond with a JSON array of objects "
-        "containing 'name' and 6-digit 'code' for Korean stocks that match the query."
-    )
-    try:
-        resp = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
-            timeout=10,
-        )
-        text = resp.choices[0].message.content
-        return json.loads(text)
-    except Exception as e:
-        print("OpenAI error", e)
-        return []
+def search_low_per(n=10):
+    """Return stocks with the lowest PER values from sample data."""
+    ranked = sorted(sample_financials, key=lambda x: x.get("per", 0))
+    return [
+        {"name": item["corp_name"], "code": item["symbol"], "per": item.get("per")}
+        for item in ranked[:n]
+    ]
 
 
 def get_stock_per(code):
@@ -398,17 +383,9 @@ def perform_query(_=None):
     elif analysis_state.get('type') == 'buyback':
         return "자사주 보유량 데이터 예시"
     elif analysis_state.get('type') == 'per_search':
-        stocks = search_stocks_openai(analysis_state.get('query', ''))
-        if not stocks:
-            return "검색 결과가 없습니다."
-        lines = []
-        for s in stocks[:10]:
-            code = s.get('code') or s.get('symbol')
-            if not code:
-                continue
-            info = get_stock_per(code)
-            lines.append(f"{info['name']}({info['code']}): PER {info['per']}")
-        return "\n".join(lines) if lines else "결과 없음"
+        stocks = search_low_per()
+        lines = [f"{s['name']}({s['code']}): PER {s['per']}" for s in stocks]
+        return "\n".join(lines)
     return "분석된 내용이 없습니다."
 
 with gr.Blocks() as demo:
